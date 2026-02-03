@@ -23,8 +23,8 @@ jobs:
       - name: Use Xcode 16.4
         run: sudo xcode-select -switch /Applications/Xcode_16.4.app
 
-      - name: Build (Release)
-        run: dotnet build -c Release osu.iOS.slnf
+      - name: Publish device IPA
+        run: dotnet publish osu.iOS/osu.iOS.csproj -c Debug -f net8.0-ios -r ios-arm64 -p:BuildIpa=true -p:MtouchLink=SdkOnly
 
       - name: Locate outputs
         shell: bash
