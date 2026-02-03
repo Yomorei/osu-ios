@@ -103,9 +103,18 @@ namespace osu.Game
         private const double global_track_volume_adjust = 0.8;
 
         public virtual bool UseDevelopmentServer => DebugUtils.IsDebugBuild;
+        // ymo
+        public virtual EndpointConfiguration CreateEndpoints()
+        {
+            var enpoints = UseDevelopmentServer ? new DevelopmentEndpointConfiguration() : new ProductionEndpointConfiguration();
+            
+            if (Storage != null && CreateOnlineStore.EndpointOverrideLoader.TryApply(Storage, enpoints, out string reason ))
+                Logger.Log($"Using custom endpoints: {reason}");
+            else
+                Logger.Log($"Custom endpoints not used: {reason}");
 
-        public virtual EndpointConfiguration CreateEndpoints() =>
-            UseDevelopmentServer ? new DevelopmentEndpointConfiguration() : new ProductionEndpointConfiguration();
+            return enpoints;
+        }
 
         protected override OnlineStore CreateOnlineStore() => new TrustedDomainOnlineStore();
 
