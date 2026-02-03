@@ -1,9 +1,7 @@
-name: iOS build artifact
+name: iOS build artifact (disabled)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build-ios:
