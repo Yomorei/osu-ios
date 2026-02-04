@@ -14,13 +14,21 @@ namespace osu.Game.Online
         {
             public bool Enabled { get; set; } = true;
 
+            // well.. should be user friendly atleast ? | allow one root URL to drive everything.
+            public string? BaseUrl { get; set; }      // preferredddd
+            public string? DomainUrl { get; set; }    // aliasss
+            public string? ServerUrl { get; set; }    // alias??
+
+            // Optional OAuth
             public string? APIClientSecret { get; set; }
             public string? APIClientID { get; set; }
 
+            // Roots
             public string? WebsiteUrl { get; set; }
             public string? APIUrl { get; set; }
-            public string? BeatmapSubmissionServiceUrl { get; set; }
 
+            // Optional direct overrides (advanced)
+            public string? BeatmapSubmissionServiceUrl { get; set; }
             public string? SpectatorUrl { get; set; }
             public string? MultiplayerUrl { get; set; }
             public string? MetadataUrl { get; set; }
@@ -69,15 +77,50 @@ namespace osu.Game.Online
                     return false;
                 }
 
-                // Apply only provided values. Validate + normalise the ones that must not have trailing slashes.
+                // If the user provided a single root URL, then it maps it to WebsiteUrl/APIUrl unless explicitly provided :_)
+                string? baseUrl = firstNonEmpty(cfg.BaseUrl, cfg.DomainUrl, cfg.ServerUrl);
+
+                bool baseProvided = !string.IsNullOrWhiteSpace(baseUrl);
+                bool websiteProvided = !string.IsNullOrWhiteSpace(cfg.WebsiteUrl);
+                bool apiProvided = !string.IsNullOrWhiteSpace(cfg.APIUrl);
+
+                if (baseProvided)
+                {
+                    if (!websiteProvided) cfg.WebsiteUrl = baseUrl;
+                    if (!apiProvided) cfg.APIUrl = baseUrl;
+
+                    websiteProvided = !string.IsNullOrWhiteSpace(cfg.WebsiteUrl);
+                    apiProvided = !string.IsNullOrWhiteSpace(cfg.APIUrl);
+                }
+
                 applyString(ref endpoints.APIClientSecret, cfg.APIClientSecret);
                 applyString(ref endpoints.APIClientID, cfg.APIClientID);
 
+                // Apply root URLs (must be absolute.. |  Website/API should not have "/" )
                 applyUrlNoTrailingSlash(ref endpoints.WebsiteUrl, cfg.WebsiteUrl, nameof(cfg.WebsiteUrl));
                 applyUrlNoTrailingSlash(ref endpoints.APIUrl, cfg.APIUrl, nameof(cfg.APIUrl));
 
-                applyOptionalUrlNoTrailingSlash(ref endpoints.BeatmapSubmissionServiceUrl, cfg.BeatmapSubmissionServiceUrl, nameof(cfg.BeatmapSubmissionServiceUrl));
+                // If the user touched the root (base/api/website), derive the common sub services
+                // unless they explicitly override those fields, but why would they {'_'}
+                bool shouldDeriveFromRoot = websiteProvided || apiProvided || baseProvided;
 
+                if (shouldDeriveFromRoot)
+                {
+                    if (string.IsNullOrWhiteSpace(cfg.SpectatorUrl))
+                        endpoints.SpectatorUrl = $"{endpoints.APIUrl}/signalr/spectator";
+
+                    if (string.IsNullOrWhiteSpace(cfg.MultiplayerUrl))
+                        endpoints.MultiplayerUrl = $"{endpoints.APIUrl}/signalr/multiplayer";
+
+                    if (string.IsNullOrWhiteSpace(cfg.MetadataUrl))
+                        endpoints.MetadataUrl = $"{endpoints.APIUrl}/signalr/metadata";
+
+                    if (string.IsNullOrWhiteSpace(cfg.BeatmapSubmissionServiceUrl))
+                        endpoints.BeatmapSubmissionServiceUrl = $"{endpoints.APIUrl}/beatmap-submission";
+                }
+
+                // Apply advanced overrides last (so they win over derived defaults :> )
+                applyOptionalUrlNoTrailingSlash(ref endpoints.BeatmapSubmissionServiceUrl, cfg.BeatmapSubmissionServiceUrl, nameof(cfg.BeatmapSubmissionServiceUrl));
                 applyUrl(ref endpoints.SpectatorUrl, cfg.SpectatorUrl, nameof(cfg.SpectatorUrl));
                 applyUrl(ref endpoints.MultiplayerUrl, cfg.MultiplayerUrl, nameof(cfg.MultiplayerUrl));
                 applyUrl(ref endpoints.MetadataUrl, cfg.MetadataUrl, nameof(cfg.MetadataUrl));
@@ -91,6 +134,17 @@ namespace osu.Game.Online
                 reason = "exception while applying override";
                 return false;
             }
+        }
+
+        private static string? firstNonEmpty(params string?[] values)
+        {
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(values[i]))
+                    return values[i]!.Trim();
+            }
+
+            return null;
         }
 
         private static void applyString(ref string target, string? value)

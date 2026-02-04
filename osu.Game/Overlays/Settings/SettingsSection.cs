@@ -109,15 +109,21 @@ namespace osu.Game.Overlays.Settings
                                 Top = 24,
                                 Bottom = 40,
                             },
-                            Children = new Drawable[]
+                            Child = new FillFlowContainer
                             {
-                                new OsuSpriteText
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Direction = FillDirection.Vertical,
+                                Children = new Drawable[]
                                 {
-                                    Font = OsuFont.TorusAlternate.With(size: header_size),
-                                    Text = Header,
-                                    Margin = SettingsPanel.CONTENT_PADDING,
-                                },
-                                FlowContent
+                                    new OsuSpriteText
+                                    {
+                                        Font = OsuFont.TorusAlternate.With(size: header_size),
+                                        Text = Header,
+                                        Margin = SettingsPanel.CONTENT_PADDING,
+                                    },
+                                    FlowContent
+                                }
                             }
                         },
                         dim = new Box
