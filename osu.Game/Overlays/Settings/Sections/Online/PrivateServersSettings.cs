@@ -1,7 +1,10 @@
+#nullable disable
+
 using System;
 using System.IO;
 using System.Text.Json;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Logging;
@@ -9,6 +12,7 @@ using osu.Framework.Localisation;
 using osu.Framework.Platform;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Overlays.Settings;
+using osuTK;
 
 namespace osu.Game.Overlays.Settings.Sections.Online
 {
@@ -17,6 +21,23 @@ namespace osu.Game.Overlays.Settings.Sections.Online
         protected override LocalisableString Header => "Private servers";
 
         private const string config_file = "endpoints.json";
+
+        private static readonly JsonSerializerOptions read_options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true
+        };
+
+        private static readonly JsonSerializerOptions write_options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        private readonly Bindable<string> baseUrl = new Bindable<string>();
+        private readonly Bindable<string> apiUrl = new Bindable<string>();
+        private readonly Bindable<string> clientId = new Bindable<string>();
+        private readonly Bindable<string> clientSecret = new Bindable<string>();
 
         private FormTextBox baseUrlTextBox = null!;
         private FormTextBox apiUrlTextBox = null!;
@@ -34,22 +55,34 @@ namespace osu.Game.Overlays.Settings.Sections.Online
         {
             baseUrlTextBox = new FormTextBox
             {
+                Caption = "Server base url",
+                HintText = "Website + API root. Must be an absolute HTTPS URL.",
                 PlaceholderText = "https://yourserver.tld",
+                Current = baseUrl
             };
 
             apiUrlTextBox = new FormTextBox
             {
+                Caption = "API url (advanced)",
+                HintText = "If your API root differs from the base url.",
                 PlaceholderText = "(optional) defaults to base url",
+                Current = apiUrl
             };
 
             clientIdTextBox = new FormTextBox
             {
+                Caption = "OAuth client id (advanced)",
+                HintText = "Only required if your server expects OAuth like official.",
                 PlaceholderText = "(optional)",
+                Current = clientId
             };
 
             clientSecretTextBox = new FormTextBox
             {
+                Caption = "OAuth client secret (advanced)",
+                HintText = "Only required if your server expects OAuth like official.",
                 PlaceholderText = "(optional)",
+                Current = clientSecret
             };
 
             saveButton = new SettingsButtonV2
@@ -68,39 +101,25 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             {
                 new SettingsNote
                 {
-                    Text = "Configure a custom server for online features. Restart the game after saving."
+                    Current =
+                    {
+                        Value = new SettingsNote.Data(
+                            "Configure a custom server for online features. Restart the game after saving.",
+                            SettingsNote.Type.Informational)
+                    }
                 },
 
-                new SettingsItemV2(baseUrlTextBox)
-                {
-                    Caption = "Server base url",
-                    TooltipText = "Website + API root. Must be an absolute HTTPS URL."
-                },
-
-                new SettingsItemV2(apiUrlTextBox)
-                {
-                    Caption = "API url (advanced)",
-                    TooltipText = "If your API root differs from the base url."
-                },
-
-                new SettingsItemV2(clientIdTextBox)
-                {
-                    Caption = "OAuth client id (advanced)",
-                    TooltipText = "Only required if your server expects OAuth like official."
-                },
-
-                new SettingsItemV2(clientSecretTextBox)
-                {
-                    Caption = "OAuth client secret (advanced)",
-                    TooltipText = "Only required if your server expects OAuth like official."
-                },
+                new SettingsItemV2(baseUrlTextBox),
+                new SettingsItemV2(apiUrlTextBox),
+                new SettingsItemV2(clientIdTextBox),
+                new SettingsItemV2(clientSecretTextBox),
 
                 new FillFlowContainer
                 {
                     AutoSizeAxes = Axes.Y,
                     RelativeSizeAxes = Axes.X,
                     Direction = FillDirection.Horizontal,
-                    Spacing = new osuTK.Vector2(10, 0),
+                    Spacing = new Vector2(10, 0),
                     Children = new Drawable[]
                     {
                         saveButton,
@@ -116,11 +135,10 @@ namespace osu.Game.Overlays.Settings.Sections.Online
         {
             public bool Enabled { get; set; } = true;
 
-            public string? BaseUrl { get; set; }
-
-            public string? APIUrl { get; set; }
-            public string? APIClientID { get; set; }
-            public string? APIClientSecret { get; set; }
+            public string BaseUrl { get; set; }
+            public string APIUrl { get; set; }
+            public string APIClientID { get; set; }
+            public string APIClientSecret { get; set; }
         }
 
         private void loadFromDiskIntoUI()
@@ -135,22 +153,15 @@ namespace osu.Game.Overlays.Settings.Sections.Online
                     return;
 
                 string json = File.ReadAllText(fullPath);
+                var cfg = JsonSerializer.Deserialize<EndpointConfigForDisk>(json, read_options);
 
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip,
-                    AllowTrailingCommas = true
-                };
-
-                var cfg = JsonSerializer.Deserialize<EndpointConfigForDisk>(json, options);
                 if (cfg == null)
                     return;
 
-                baseUrlTextBox.Text = cfg.BaseUrl ?? string.Empty;
-                apiUrlTextBox.Text = cfg.APIUrl ?? string.Empty;
-                clientIdTextBox.Text = cfg.APIClientID ?? string.Empty;
-                clientSecretTextBox.Text = cfg.APIClientSecret ?? string.Empty;
+                baseUrl.Value = cfg.BaseUrl ?? string.Empty;
+                apiUrl.Value = cfg.APIUrl ?? string.Empty;
+                clientId.Value = cfg.APIClientID ?? string.Empty;
+                clientSecret.Value = cfg.APIClientSecret ?? string.Empty;
             }
             catch (Exception ex)
             {
@@ -162,30 +173,29 @@ namespace osu.Game.Overlays.Settings.Sections.Online
         {
             try
             {
-                string baseUrl = (baseUrlTextBox.Text ?? string.Empty).Trim();
-                string apiUrl = (apiUrlTextBox.Text ?? string.Empty).Trim();
-                string clientId = (clientIdTextBox.Text ?? string.Empty).Trim();
-                string clientSecret = (clientSecretTextBox.Text ?? string.Empty).Trim();
+                string baseUrlValue = (baseUrl.Value ?? string.Empty).Trim();
+                string apiUrlValue = (apiUrl.Value ?? string.Empty).Trim();
+                string clientIdValue = (clientId.Value ?? string.Empty).Trim();
+                string clientSecretValue = (clientSecret.Value ?? string.Empty).Trim();
 
-                if (string.IsNullOrWhiteSpace(baseUrl))
+                if (string.IsNullOrWhiteSpace(baseUrlValue))
                     throw new InvalidDataException("Base url is required.");
 
-                baseUrl = normaliseAbsoluteUrlNoTrailingSlash(baseUrl, "base url");
+                baseUrlValue = normaliseAbsoluteUrlNoTrailingSlash(baseUrlValue, "base url");
 
-                if (!string.IsNullOrWhiteSpace(apiUrl))
-                    apiUrl = normaliseAbsoluteUrlNoTrailingSlash(apiUrl, "api url");
+                if (!string.IsNullOrWhiteSpace(apiUrlValue))
+                    apiUrlValue = normaliseAbsoluteUrlNoTrailingSlash(apiUrlValue, "api url");
 
                 var cfg = new EndpointConfigForDisk
                 {
                     Enabled = true,
-                    BaseUrl = baseUrl,
-                    APIUrl = string.IsNullOrWhiteSpace(apiUrl) ? null : apiUrl,
-                    APIClientID = string.IsNullOrWhiteSpace(clientId) ? null : clientId,
-                    APIClientSecret = string.IsNullOrWhiteSpace(clientSecret) ? null : clientSecret
+                    BaseUrl = baseUrlValue,
+                    APIUrl = string.IsNullOrWhiteSpace(apiUrlValue) ? null : apiUrlValue,
+                    APIClientID = string.IsNullOrWhiteSpace(clientIdValue) ? null : clientIdValue,
+                    APIClientSecret = string.IsNullOrWhiteSpace(clientSecretValue) ? null : clientSecretValue
                 };
 
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string json = JsonSerializer.Serialize(cfg, options);
+                string json = JsonSerializer.Serialize(cfg, write_options);
 
                 string fullPath = storage.GetFullPath(config_file);
                 File.WriteAllText(fullPath, json);
@@ -207,10 +217,10 @@ namespace osu.Game.Overlays.Settings.Sections.Online
                 if (File.Exists(fullPath))
                     File.Delete(fullPath);
 
-                baseUrlTextBox.Text = string.Empty;
-                apiUrlTextBox.Text = string.Empty;
-                clientIdTextBox.Text = string.Empty;
-                clientSecretTextBox.Text = string.Empty;
+                baseUrl.Value = string.Empty;
+                apiUrl.Value = string.Empty;
+                clientId.Value = string.Empty;
+                clientSecret.Value = string.Empty;
 
                 Logger.Log($"{config_file} removed: {fullPath}", LoggingTarget.Runtime, LogLevel.Important);
             }
